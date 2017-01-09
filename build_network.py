@@ -3,11 +3,11 @@ Tools for building and analyzing a semantic network starting from
 a list of lists of text
 
 Author: Matthew A Turner
-Date: 20 December 2016
+Date: 9 January 2017
 '''
 import networkx as nx
 
-from numpy.linalg import norm  # , svd
+from numpy.linalg import norm
 from numpy import arccos, zeros, log, flipud
 from nltk.corpus import stopwords
 from sklearn.utils.extmath import randomized_svd
@@ -90,9 +90,6 @@ def _calculate_ppmi(texts, window_distance, alpha,
         P_word = norm * lookup_count.count
 
         relevant_pairs = pairs_lookup[word]
-        # relevant_pairs = [
-        #     wc_pair for wc_pair in word_context_pairs if word == wc_pair[0]
-        # ]
 
         for pair in relevant_pairs:
 
@@ -108,8 +105,6 @@ def _calculate_ppmi(texts, window_distance, alpha,
 
             ppmi_matrix[i, j] = pmi_val if pmi_val > 0 else 0
 
-    #np.savetxt(saveroot + '.ppmi_matrix', ppmi_matrix)
-
     return word_lookup_counts, context_lookup_counts, ppmi_matrix
 
 
@@ -124,22 +119,11 @@ def ham(x, y):
     return arccos(- cos_sim(x, y))
 
 
-# def calculate_edgeweights(U_reduced):
 def calculate_edgeweights(embedding_mat):
 
     normed_embeddings = normalize(embedding_mat, norm='l2', axis=1)
 
     return arccos(-normed_embeddings.dot(normed_embeddings.T))
-
-    # nrows = U_reduced.shape[0]
-    # combos = [(i, j) for i in range(nrows) for j in range(nrows) if i != j]
-
-    # weights = {
-    #     (i, j): ham(U_reduced[i], U_reduced[j])
-    #     for i, j in combos
-    # }
-
-    # return weights
 
 
 # TODO these variable names are bad: word index and word lookup...
@@ -154,19 +138,6 @@ def get_knn(word, edgeweight_mat, k, word_index_counts, word_lookup_table):
         ((word, word_lookup_table[nn_idx]), edgeweight_mat[word_idx, nn_idx])
         for nn_idx in k_best_indices
     ]
-    # edge_list = edges.items()
-    # word_edges = list(filter(lambda x: x[0][0] == word_idx, edge_list))
-
-    # word_edges.sort(key=lambda x: -x[1])
-
-    # knn = word_edges[:k]
-
-#     ret = [
-#         ((word, word_lookup_table[edge[0][1]]), edge[1])
-#         for edge in knn
-#     ]
-
-    # return ret
 
 
 class Embedding:
@@ -199,12 +170,8 @@ class Embedding:
         word_lookup = {k: v.index for k, v in word_lookup_counts.items()}
         index_lookup = _index_lookup_table(word_lookup_counts)
 
-        # U, _, _ = svd(ppmi.matrix)
-        # embeddings = U[:, :embedding_dim]
-
         embeddings, _, _ = randomized_svd(ppmi.matrix, embedding_dim)
 
-        # return cls(embeddings, word_lookup, index_lookup, U_full=U)
         new_embedding = cls(embeddings, word_lookup, index_lookup)
 
         new_embedding.word_lookup_counts = word_lookup_counts
@@ -218,55 +185,13 @@ class Embedding:
 
         self.edgeweight_mat = calculate_edgeweights(self.matrix)
 
-    # def generate_graph(self, tau, words=None):
     def generate_graph(self, k, words=None):
 
         if self.edgeweight_mat is None:
             self.edgeweight_mat = calculate_edgeweights(self.matrix)
 
-        # network = SemanticNetwork(
-        #     matrix, tau, self.word_lookup_counts, self.index_lookup,
-        #     words=words
-        # )
         return make_graph(self.edgeweight_mat, k, self.word_lookup_counts,
                           self.index_lookup, words=words)
-
-    # def from_texts(cls, texts, words=None, k=5, embedding_dim=300,
-    #                window_distance=5, alpha=0.75, ):
-    #     '''
-    #     Generate k-nearest neighbor embedding from a set of texts.
-
-    #     Arguments:
-    #         texts list(list): list of lists of ordered word
-    #             (i.e. list of documents)
-    #         k (int): number of nearest neighbors to include in graph
-    #         embedding_dim (int): number of columns from U matrix in SVD to
-    #             include in embedded word vectors
-    #         window_distance (int): window to use for PPMI calculation
-    #         alpha (float): value between 0 and 1 for smoothing context counts
-    #             in PPMI calculation
-    #     '''
-
-    #     print('Calculating PPMI')
-    #     word_lookup_counts, _, ppmi_mat = \
-    #         _calculate_ppmi(texts, window_distance, alpha)
-
-    #     U, s, V = svd(ppmi_mat)
-
-    #     U_reduced = U[:, :embedding_dim]
-
-    #     word_lookup = {k: v.index for k, v in word_lookup_counts.items()}
-    #     index_lookup = _index_lookup_table(word_lookup_counts)
-    #     print('Calculating Edge Weights')
-    #     matrix = calculate_edgeweights(U_reduced)
-
-
-    #     print('Making graph')
-    #     graph = make_graph(
-    #         matrix, k, word_lookup_counts, index_lookup, words=words
-    #     )
-
-    #     return cls(matrix, graph, word_lookup, index_lookup)
 
 
 class SemanticNetwork:
