@@ -2,23 +2,40 @@ from collections import Counter
 from mongoengine import connect
 from nltk.corpus import stopwords
 
+
 STOPWORDS = set(stopwords.words('english'))
 
 
-c = connect()
-db = c.get_database('metacorps')
+def get_iatv_corpus_names(db_name='metacorps'):
 
-doc_ids = db.get_collection('iatv_corpus').find_one(
-        {'name': 'Three Months for Semantic Network Experiments'}
+    return [c['name'] for c in
+            connect().get_database(
+                    db_name
+                ).get_collection(
+                    'iatv_corpus'
+                ).find()
+            ]
+
+
+def get_iatv_corpus_doc_data(iatv_corpus_name, network, db_name='metacorps'):
+
+    db = connect().get_database(db_name)
+
+    doc_ids = db.get_collection('iatv_corpus').find_one(
+        {'name': iatv_corpus_name}
     )['documents']
 
-iatv_docs = db.get_collection('iatv_document')
+    iatv_docs = db.get_collection('iatv_document')
 
-docs = [iatv_docs.find_one({'_id': doc_id})['document_data']
-        for doc_id in doc_ids]
+    docs = [iatv_docs.find_one({'_id': doc_id})
+            for doc_id in doc_ids]
+
+    docs = [doc['document_data'] for doc in docs if doc['network'] == network]
+
+    return docs
 
 
-def calculate_counts(docs):
+def text_counts(docs):
     '''
     Make word count for list of documents
     '''
@@ -30,7 +47,7 @@ def calculate_counts(docs):
     for t in texts:
         c.update(t)
 
-    texts = [[word for word in text
+    texts = [[word for word in text[1:]  # remove 1st word always 'transcript'
               if c[word] >= 10]
              for text in texts]
 
@@ -40,4 +57,11 @@ def calculate_counts(docs):
 
     return (texts, c)
 
-texts, counts = calculate_counts(docs)
+# texts, counts = text_counts(docs)
+
+
+def get_corpus_text(iatv_corpus_name, network, db_name='metacorps'):
+
+    return text_counts(
+        get_iatv_corpus_doc_data(iatv_corpus_name, network, db_name=db_name)
+    )
