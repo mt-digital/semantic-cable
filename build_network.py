@@ -7,8 +7,8 @@ Date: 9 January 2017
 '''
 import networkx as nx
 
+from numpy import array, zeros, log, flipud, power
 from numpy.linalg import norm
-from numpy import arccos, zeros, log, flipud
 from nltk.corpus import stopwords
 from sklearn.utils.extmath import randomized_svd
 from sklearn.preprocessing import normalize
@@ -71,7 +71,17 @@ def _calculate_ppmi(texts, window_distance, alpha,
     # step 2) process word and joint counts to calculate PPMI matrix
 
     N = len(word_lookup_counts.items())
-    norm = 1.0 / N
+    norm_coeff = 1.0 / N
+
+    # context smoothing "alleviates bias towards rare words"
+    # Levy, O., Goldberg, Y., & Dagan, I. (2015).
+    # Transactions of the Association for Computational Linguistics, 3, 211–225
+    scaled_context_vec = power(
+        array([v.count for v in word_lookup_counts.values()]),
+        alpha
+    )
+    scaled_context_norm_coeff = 1.0 / norm(scaled_context_vec)
+
     ppmi_matrix = zeros((N, N))
 
     word_context_pairs = set(context_lookup_counts.keys())
@@ -87,7 +97,7 @@ def _calculate_ppmi(texts, window_distance, alpha,
     for word, lookup_count in word_lookup_counts.items():
 
         i = lookup_count.index
-        P_word = norm * lookup_count.count
+        P_word = norm_coeff * lookup_count.count
 
         relevant_pairs = pairs_lookup[word]
 
@@ -98,8 +108,10 @@ def _calculate_ppmi(texts, window_distance, alpha,
 
             j = context_wlc.index
 
-            P_context = norm * context_wlc.count
-            P_joint = norm * context_lookup_counts[pair]
+            P_context = \
+                scaled_context_norm_coeff * pow(context_wlc.count, alpha)
+
+            P_joint = norm_coeff * context_lookup_counts[pair]
 
             pmi_val = log(P_joint / (P_context * P_word))
 
@@ -108,22 +120,12 @@ def _calculate_ppmi(texts, window_distance, alpha,
     return word_lookup_counts, context_lookup_counts, ppmi_matrix
 
 
-def cos_sim(x, y):
-    if norm(x)*norm(y) > 0:
-        return x.dot(y) / (norm(x)*norm(y))
-    else:
-        return 0
-
-
-def ham(x, y):
-    return arccos(- cos_sim(x, y))
-
-
 def calculate_edgeweights(embedding_mat):
 
     normed_embeddings = normalize(embedding_mat, norm='l2', axis=1)
 
-    return arccos(-normed_embeddings.dot(normed_embeddings.T))
+    # return arccos(-normed_embeddings.dot(normed_embeddings.T))
+    return normed_embeddings.dot(normed_embeddings.T)
 
 
 # TODO these variable names are bad: word index and word lookup...
@@ -178,7 +180,7 @@ class Embedding:
 
         return new_embedding
 
-    def make_edgweight_mat(self):
+    def make_edgeweight_mat(self):
 
         if self.matrix is None:
             raise RuntimeError('Must first create embedding matrix')
@@ -241,3 +243,20 @@ def make_graph(edges, k, word_index_counts, word_lookup_table, words=None):
 def _index_lookup_table(word_index_counts):
 
     return dict((wic.index, word) for word, wic in word_index_counts.items())
+
+
+def build_network(texts, alpha=0.75, verbose=False):
+
+    if verbose:
+        print('building PPMI matrix')
+    ppmi = PPMI.from_texts(texts, alpha=alpha)
+
+    if verbose:
+        print('calculating embedding via randomized SVD')
+    embedding = Embedding.from_ppmi(ppmi)
+
+    if verbose:
+        print('calculating edgeweight matrix')
+    embedding.make_edgeweight_mat()
+
+    return embedding

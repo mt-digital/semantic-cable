@@ -1,6 +1,10 @@
+import matplotlib.pyplot as plt
+import networkx as nx
+
 from collections import Counter
 from mongoengine import connect
 from nltk.corpus import stopwords
+from numpy import array
 
 
 STOPWORDS = set(stopwords.words('english'))
@@ -57,11 +61,26 @@ def text_counts(docs):
 
     return (texts, c)
 
-# texts, counts = text_counts(docs)
-
 
 def get_corpus_text(iatv_corpus_name, network, db_name='metacorps'):
 
     return text_counts(
         get_iatv_corpus_doc_data(iatv_corpus_name, network, db_name=db_name)
     )
+
+
+def vis_graph(g, node_color='r', figsize=(10, 10)):
+
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111)
+    node_pos = nx.drawing.nx_pydot.graphviz_layout(g)
+    label_pos = {
+        k: array([v[0] + .1, v[1] + .01])
+        for k, v in node_pos.items()
+    }
+
+    nx.draw_networkx_labels(g, pos=label_pos)
+    nx.draw_networkx_nodes(g, node_color=node_color, pos=node_pos, alpha=0.5)
+    nx.draw_networkx_edges(g, pos=node_pos, width=1.0)
+
+    return fig, ax
