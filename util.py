@@ -39,20 +39,28 @@ def get_iatv_corpus_doc_data(iatv_corpus_name, network, db_name='metacorps'):
     return docs
 
 
-def text_counts(docs):
+def text_counts(docs, remove_commercials=True):
     '''
     Make word count for list of documents
     '''
-    texts = [[word for word in doc.lower().split()
-              if word.isalpha() and word not in STOPWORDS]
-             for doc in docs]
+    if remove_commercials:
+        texts = [[word.lower() for word in doc.split()
+                  if word.isalpha()
+                  and not any(c.islower() for c in word)
+                  ]
+                 for doc in docs]
+    else:
+        texts = [[word.lower() for word in doc.split()
+                  if word.isalpha()
+                  ]
+                 for doc in docs]
 
     c = Counter([])
     for t in texts:
         c.update(t)
-
-    texts = [[word for word in text[1:]  # remove 1st word always 'transcript'
-              if c[word] >= 10]
+    # remove 1st word always 'transcript'; also lower now
+    texts = [[word for word in text[1:]
+              if c[word] >= 10 and word not in STOPWORDS]
              for text in texts]
 
     c = Counter([])
