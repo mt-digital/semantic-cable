@@ -70,10 +70,12 @@ def text_counts(docs, remove_commercials=True):
     return (texts, c)
 
 
-def get_corpus_text(iatv_corpus_name, network, db_name='metacorps'):
+def get_corpus_text(iatv_corpus_name, network, db_name='metacorps',
+                    remove_commercials=True):
 
     return text_counts(
-        get_iatv_corpus_doc_data(iatv_corpus_name, network, db_name=db_name)
+        get_iatv_corpus_doc_data(iatv_corpus_name, network, db_name=db_name),
+        remove_commercials=remove_commercials
     )
 
 
