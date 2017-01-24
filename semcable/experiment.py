@@ -6,12 +6,12 @@ import networkx as nx
 import numpy as np
 import lda
 
-from collections import Counter
+from collections import Counter, OrderedDict
 from mongoengine import connect
 from nltk.corpus import stopwords
 from scipy.optimize import minimize_scalar
 
-from util import vis_graph
+from util import vis_graph, get_word_idx_lookup
 
 STOPWORDS = stopwords.words('english')
 
@@ -101,9 +101,9 @@ class Experiment:
         if self.A is None:
             raise RuntimeError('Adjacency matrix not yet built')
 
-        vocab_idx_lookup = get_word_idx_fun(self.vocab)
+        vocab_idx_lookup = get_word_idx_lookup(self.vocab)
 
-        cue_idx = vocab_idx_lookup(cue_word)
+        cue_idx = vocab_idx_lookup[cue_word]
 
         a_cue = self.A[:, cue_idx]
 
@@ -133,57 +133,6 @@ class NetworkStats:
 
     def __init__(self, power_law_exp):
         self.power_law_exp = power_law_exp
-
-
-def make_doc_word_matrix(docs, remove_commercials=True):
-    '''
-    Make word count for list of documents
-    '''
-    if remove_commercials:
-        texts = [[word.lower() for word in doc.split()
-                  if word.isalpha()
-                  and not any(c.islower() for c in word)
-                  ]
-                 for doc in docs]
-    else:
-        texts = [[word.lower() for word in doc.split()
-                  if word.isalpha()
-                  ]
-                 for doc in docs]
-
-    c = Counter([])
-    for t in texts:
-        c.update(t)
-    # remove 1st word always 'transcript'; also lower now
-    texts = [[word for word in text[1:]
-              if c[word] >= 1 and word not in STOPWORDS]
-             for text in texts]
-
-    c = Counter([])
-    for t in texts:
-        c.update(t)
-
-    vocab = list(c.keys())
-    n_words = len(vocab)
-    n_docs = len(texts)
-    doc_word_mat = np.zeros((n_docs, n_words))
-
-    vocab_lookup = get_word_idx_fun(vocab)
-
-    for t_idx, t in enumerate(texts):
-        c = Counter(t)
-        for k, v in c.items():
-            doc_word_mat[t_idx, vocab_lookup(k)] = v
-
-    return (doc_word_mat, vocab)
-
-
-def get_word_idx_fun(vocab):
-
-    def fun(word):
-        return [i for i, el in enumerate(vocab) if el == word][0]
-
-    return fun
 
 
 def get_iatv_corpus_doc_data(iatv_corpus_name, network, start_date=None,
