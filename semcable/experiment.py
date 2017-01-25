@@ -27,9 +27,11 @@ class Experiment:
         self.A = None
         self.power_law_coefficients = None
 
-    def fit_lda(self, n_topics=20):
+    def fit_lda(self, n_topics=20, n_iter=1500):
 
-        self.model = lda.LDA(n_topics=n_topics, random_state=None)
+        self.model = lda.LDA(n_topics=n_topics,
+                             n_iter=n_iter, random_state=None)
+
         self.model.fit(self.doc_word_mat)
 
     def calculate_adjacency(self, k_ave_target=11.67, tol=1e-3):
