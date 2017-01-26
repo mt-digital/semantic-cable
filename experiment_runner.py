@@ -1,26 +1,27 @@
-import logging
 import numpy as np
 import pickle
+import os
 
 from sys import argv
 
 from semcable.experiment import Experiment
 from util import make_doc_word_matrix, get_corpus_text
 
+
 def print_help():
 
     print('''
-Usage:\n python experiment_runner.py <base_corpus> <n_weeks> <pickle_filename>
+Usage:\n python experiment_runner.py <base_corpus> <n_weeks> <save_dir>
 ''')
 
 try:
     base_corpus_network = argv[1]
 
-    if base_corpus_network== '-h':
+    if base_corpus_network == '-h':
         print_help()
 
     n_weeks = argv[2]
-    pickle_filename = argv[3]
+    save_dir = argv[3]
 
     if len(argv) == 5:
         n_iter = int(argv[4])
@@ -30,18 +31,15 @@ try:
 except:
     print_help()
 
-# logging.basicConfig(datefmt='%m-%d %H:%M:%S',
-#                     filename='/home/mturner8/logs/semcable/' + pickle_filename,
-#                     filemode='w')
-
-texts = get_corpus_text('Three Months for Semantic Network Experiments',
-                         base_corpus_network)
 # texts = get_corpus_text('Sample Week for Zipf experiment',
+texts = get_corpus_text('Three Months for Semantic Network Experiments',
+                        base_corpus_network)
 
 doc_word_mat, vocab = make_doc_word_matrix(texts)
 
+n_topics = 80
 ex = Experiment(doc_word_mat, vocab)
-ex.fit_lda(n_topics=80, n_iter=n_iter)
+ex.fit_lda(n_topics=n_topics, n_iter=n_iter)
 print('\nFinished fitting LDA. Fitting adjacency\n')
 ex.calculate_adjacency()
 print('\nMaking graph\n')
@@ -49,19 +47,46 @@ ex.make_graph()
 print('\nFitting powerlaw\n')
 ex.fit_powerlaw()
 
+opj = os.path.join
 
-pickle.dump(ex, open(pickle_filename, 'wb'), protocol=4)
+# write graph and powerlaw fit data
+pickle.dump(ex.graph, open(opj(save_dir, 'graph'), 'wb'))
+pickle.dump(ex.degs, open(opj(save_dir, 'degrees'), 'wb'))
+
+# select and write words of interest vectors
+words_of_interest = [
+    'swamp', 'trump', 'environment', 'regulations',
+    'regulators', 'economy', 'jobs', 'manufacturing', 'immigrant',
+    'immigration', 'reform', 'drain', 'attack', 'hit', 'punch', 'clinton',
+    'hillary', 'bill', 'donald', 'pelosi', 'ryan', 'paul', 'congress',
+    'senate', 'obama', 'washington', 'dc', 'environment', 'epa',
+    'lobbyists', 'lobbyist', 'lobbying', 'attacking', 'hitting', 'attacked',
+    'lashed', 'punched', 'punching', 'isis', 'iraq', 'peace', 'war',
+    'battle', 'fight', 'fought', 'unemployment', 'millenial', 'millenials',
+    'vote', 'voting', 'voter', 'fraud', 'tax', 'taxes', 'returns'
+]
 
 
-# # hack to deal with OS X pickle implementation bug; fails on files over 2G
-# # see https://stackoverflow.com/questions/31468117/python-3-can-pickle-handle-byte-objects-larger-than-4gb
-# MAX_BYTES = 2**31 - 1
+with open(opj(save_dir, 'words_of_interest'), 'w') as f:
+    for w in words_of_interest:
+        f.write(w + '\n')
 
-# with open('n_trials=20;d_pct=6.25', 'wb') as f:
+vocab_lookup = dict((w, i) for i, w in enumerate(vocab))
+woi_indexes = [vocab_lookup[w] for w in words_of_interest]
 
-#     pickle_bytearray = bytearray(pickle.dumps(ex))
-#     ba_len = len(pickle_bytearray)
+e_woi = ex.E[:, woi_indexes]
+np.save(opj(save_dir, 'woi_edgeweights'), e_woi)
 
-#     for idx in range(0, ba_len, MAX_BYTES):
-#         f.write(pickle_bytearray[idx:idx+MAX_BYTES])
+# save doc word
+np.save(os.path.join(opj(save_dir, 'doc_word_mat')), doc_word_mat)
+# save vocab
+with open(opj(save_dir, 'vocab'), 'w') as f:
+    for v in vocab:
+        f.write(v + '\n')
 
+open(opj(save_dir, 'lda_params'), 'w').write(
+    '{{"n_topics": {}, "n_iter": {}}}'.format(n_topics, n_iter)
+)
+
+# np.save(opj(save_dir, 'edgeweights'), ex.E)
+# np.save(opj(save_dir, 'adjacency'), ex.A)
