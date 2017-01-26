@@ -2,7 +2,7 @@ import numpy as np
 
 from unittest import TestCase
 
-from semcable.experiment import make_doc_word_matrix
+from semcable.util import make_doc_word_matrix
 
 
 class TestDocWordMatrix(TestCase):
