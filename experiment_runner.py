@@ -5,13 +5,13 @@ import os
 from sys import argv
 
 from semcable.experiment import Experiment
-from util import make_doc_word_matrix, get_corpus_text
+from semcable.util import make_doc_word_matrix, get_corpus_text
 
 
 def print_help():
 
     print('''
-Usage:\n python experiment_runner.py <base_corpus> <n_weeks> <save_dir>
+Usage:\n python experiment_runner.py <base_corpus> <n_weeks> <save_dir> [<n_iter>]
 ''')
 
 try:
@@ -20,24 +20,35 @@ try:
     if base_corpus_network == '-h':
         print_help()
 
-    n_weeks = argv[2]
+    n_weeks = int(argv[2])
     save_dir = argv[3]
 
-    if len(argv) == 5:
+    if len(argv) >= 5:
         n_iter = int(argv[4])
     else:
         n_iter = 1500
+
+    if len(argv) == 6:
+        n_topics = int(argv[5])
+    else:
+        n_topics = 110
 
 except:
     print_help()
 
 # texts = get_corpus_text('Sample Week for Zipf experiment',
-texts = get_corpus_text('Three Months for Semantic Network Experiments',
-                        base_corpus_network)
+if n_weeks == 0:
+    texts = get_corpus_text('Three Months for Semantic Network Experiments',
+                            base_corpus_network)
+else:
+    texts = get_corpus_text(
+        'Three Months for Semantic Network Experiments',
+        base_corpus_network,
+        n_weeks=n_weeks
+    )
 
 doc_word_mat, vocab = make_doc_word_matrix(texts)
 
-n_topics = 80
 ex = Experiment(doc_word_mat, vocab)
 ex.fit_lda(n_topics=n_topics, n_iter=n_iter)
 print('\nFinished fitting LDA. Fitting adjacency\n')
@@ -52,6 +63,10 @@ opj = os.path.join
 # write graph and powerlaw fit data
 pickle.dump(ex.graph, open(opj(save_dir, 'graph'), 'wb'))
 pickle.dump(ex.degs, open(opj(save_dir, 'degrees'), 'wb'))
+
+# write log likelihoods used for parameterization
+pickle.dump(ex.model.loglikelihoods_,
+            open(opj(save_dir, 'loglikelihoods'), 'wb'))
 
 # select and write words of interest vectors
 words_of_interest = [

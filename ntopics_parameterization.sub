@@ -1,0 +1,31 @@
+#! /bin/bash
+#$ -S /bin/bash
+#$ -q all.q
+#$ -cwd
+#$ -j y
+#$ -V
+#$ -l mem_free=96G
+#$ -pe smp 1
+
+tag="${network}"_"${n_weeks}"_"${n_topics}" 
+
+printf "\nTAG: $tag\n"
+
+mkdir -p data/$tag/
+
+db_path=/home/mturner8/.db_$tag
+
+cp -r /home/mturner8/.db $db_path
+
+mongod --dbpath $db_path &
+
+printf "\nRunning experiment !\n\n`uptime`\n"
+
+python semantic-cable/experiment_runner.py \
+    ${network} ${n_weeks} data/$tag 2000 ${n_topics}
+
+printf "\nJob Finished!\n\n`uptime`\n"
+
+mongod --shutdown --dbpath $db_path
+
+rm -r $db_path

@@ -4,6 +4,7 @@ import numpy as np
 import warnings
 
 from collections import Counter, OrderedDict
+from datetime import datetime, timedelta
 from mongoengine import connect
 from nltk.corpus import stopwords
 from numpy import array
@@ -23,7 +24,21 @@ def get_iatv_corpus_names(db_name='metacorps'):
             ]
 
 
-def get_iatv_corpus_doc_data(iatv_corpus_name, network, db_name='metacorps'):
+def get_corpus_text(iatv_corpus_name, network, n_weeks=0, db_name='metacorps',
+                    remove_commercials=True):
+
+    return make_texts_list(
+
+        get_iatv_corpus_doc_data(
+            iatv_corpus_name, network, n_weeks=n_weeks, db_name=db_name
+        ),
+        remove_commercials=remove_commercials
+    )
+
+
+def get_iatv_corpus_doc_data(iatv_corpus_name, network,
+                             start_date=datetime(2016, 9, 1), n_weeks=None,
+                             db_name='metacorps'):
 
     db = connect().get_database(db_name)
 
@@ -36,9 +51,33 @@ def get_iatv_corpus_doc_data(iatv_corpus_name, network, db_name='metacorps'):
     docs = [iatv_docs.find_one({'_id': doc_id})
             for doc_id in doc_ids]
 
-    docs = [doc['document_data'] for doc in docs if doc['network'] == network]
+    if network == 'MSNBCW':
+        other_network = 'FOXNEWSW'
+    else:
+        other_network = 'MSNBCW'
 
-    return docs
+    texts = [
+        doc['document_data'] for doc in docs if doc['network'] == network
+    ]
+    # else:
+    #     docs = [
+    #         doc['document_data'] for doc in docs
+    #         if doc['network'] == network and doc['start_localtime'] <= end_date
+    #     ]
+
+    if n_weeks is not None and n_weeks != 0:
+
+        end_date = start_date + timedelta(days=7*n_weeks)
+
+        other_texts = [
+            doc['document_data'] for doc in docs
+            if doc['network'] == other_network and
+            doc['start_localtime'] <= end_date
+        ]
+
+        texts = texts + other_texts
+
+    return texts
 
 
 def text_counts(docs, remove_commercials=True):
@@ -70,15 +109,6 @@ def text_counts(docs, remove_commercials=True):
         c.update(t)
 
     return (texts, c)
-
-
-def get_corpus_text(iatv_corpus_name, network, db_name='metacorps',
-                    remove_commercials=True):
-
-    return make_texts_list(
-        get_iatv_corpus_doc_data(iatv_corpus_name, network, db_name=db_name),
-        remove_commercials=remove_commercials
-    )
 
 
 def make_texts_list(docs, remove_commercials=True):
