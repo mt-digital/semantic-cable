@@ -1,15 +1,18 @@
 '''
 Experimental harness for semantic networks of mixed cable programming
 '''
+import lda
+import io
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import lda
+import pickle
 
-from collections import Counter, OrderedDict
+from collections import Counter
 from mongoengine import connect
 from nltk.corpus import stopwords
 from scipy.optimize import minimize_scalar
+from tarfile import TarFile
 
 from .util import vis_graph, get_word_idx_lookup
 
@@ -98,7 +101,7 @@ class Experiment:
         plt.show()
 
     def visualize_graph(self, cue_word, node_color='#CABAC1', alpha=0.5,
-                        figsize=(10, 10), layout='spectral'):
+                        figsize=(10, 10), layout='graphviz'):
         '''
         visualize the local part of the graph around a list of words and
         maximum degree of nodes away to include
@@ -134,28 +137,59 @@ class Experiment:
                   alpha=alpha, layout=layout)
 
 
+def _get_tf_name(var_str, tf_names):
+    return next(n for n in tf_names if var_str in n)
+
+
 class Results:
 
-    def __init__(self, doc_word_matrix, vocab, edgeweight_mat, adjacency_mat):
-        self.doc_word_matrix = doc_word_matrix
+    def __init__(self, doc_word_matrix, vocab, words_of_interest,
+                 woi_edgeweights, graph, degs):
+
+        self.degs = degs
+        self.graph = graph
+
+        self.words_of_interest = words_of_interest
+        # words of interest edgweights
+        self.woi_edgeweights = woi_edgeweights
+
         self.vocab = vocab
-        self.E = edgeweight_mat
-        self.A = adjacency_mat
+        self.doc_word_matrix = doc_word_matrix
 
-    def make_graph(self):
+    @classmethod
+    def from_tar(cls, tar_path):
 
-        if self.A is None:
-            raise RuntimeError('Adjacency matrix not yet built')
+        tf = TarFile.open(tar_path)
+        tf_names = list(tf.getnames())
 
-        self.graph = nx.from_numpy_matrix(self.A)  # , create_using=nx.DiGraph)
+        dwm_name = _get_tf_name('doc_word_mat', tf_names)
+        vocab_name = _get_tf_name('vocab', tf_names)
+        woi_name = _get_tf_name('words_of_interest', tf_names)
+        woi_weights_name = _get_tf_name('woi_edgeweights', tf_names)
+        graph_name = _get_tf_name('graph', tf_names)
+        degs_name = _get_tf_name('degrees', tf_names)
 
-        self.degs = np.flipud(
-                np.sort(
-                    np.array(
-                        list(self.graph.degree().values())
-                    )
-                )
-            )
+        v = tf.extractfile(vocab_name)
+        vocab = [el.decode('unicode_escape').strip() for el in v.readlines()]
+
+        woi = tf.extractfile(woi_name)
+        words_of_interest = [el.decode('unicode_escape').strip()
+                             for el in woi.readlines()]
+
+        woi_edgeweights = np.load(
+            io.BytesIO(tf.extractfile(woi_weights_name).read())
+        )
+        doc_word_mat = np.load(
+            io.BytesIO(tf.extractfile(dwm_name).read())
+        )
+
+        degs = pickle.load(tf.extractfile(degs_name))
+        graph = pickle.load(tf.extractfile(graph_name))
+
+        return cls(
+            doc_word_mat, vocab, words_of_interest,
+            woi_edgeweights, graph, degs
+        )
 
     def fit_powerlaw(self):
 
@@ -190,32 +224,34 @@ class Results:
         plt.show()
 
     def visualize_graph(self, cue_word, node_color='#CABAC1', alpha=0.5,
-                        figsize=(10, 10), layout='spectral'):
+                        figsize=(10, 10), layout='graphviz'):
         '''
         visualize the local part of the graph around a list of words and
         maximum degree of nodes away to include
         '''
-        if self.A is None:
-            raise RuntimeError('Adjacency matrix not yet built')
+        # if self.A is None:
+        #     raise RuntimeError('Adjacency matrix not yet built')
 
-        vocab_idx_lookup = get_word_idx_lookup(self.vocab)
+        woi_idx_lookup = get_word_idx_lookup(self.words_of_interest)
 
-        cue_idx = vocab_idx_lookup[cue_word]
+        cue_idx = woi_idx_lookup[cue_word]
 
-        a_cue = self.A[:, cue_idx]
-
+        a_cue = self.woi_edgeweights[:, cue_idx]
+        print(a_cue[:10])
         subgraph_idxs = [cue_idx]
 
         assoc_idxs = np.where(a_cue == 1.0)[0]
         assoc_idxs = assoc_idxs[assoc_idxs != cue_idx]
         # edges = [(cue_idx, ai) for ai in assoc_idxs]
 
-        for cue_idx in assoc_idxs:
-            a_cue = self.A[:, cue_idx]
-            assoc_idxs = np.where(a_cue == 1.0)[0]
-            assoc_idxs = assoc_idxs[assoc_idxs != cue_idx]
-            subgraph_idxs.extend(assoc_idxs)
-            # edges.extend((cue_idx, ai) for ai in assoc_idxs)
+        # for cue_idx in assoc_idxs:
+        #     a_cue = self.A[:, cue_idx]
+        #     assoc_idxs = np.where(a_cue == 1.0)[0]
+        #     assoc_idxs = assoc_idxs[assoc_idxs != cue_idx]
+        #     subgraph_idxs.extend(assoc_idxs)
+        #     # edges.extend((cue_idx, ai) for ai in assoc_idxs)
+
+        subgraph_idxs.extend(assoc_idxs)
 
         subgraph = self.graph.subgraph(subgraph_idxs)
 
@@ -224,8 +260,6 @@ class Results:
 
         vis_graph(subgraph, node_color=node_color, figsize=figsize,
                   alpha=alpha, layout=layout)
-
-
 
 
 class NetworkStats:
