@@ -259,4 +259,4 @@ def build_network(texts, alpha=0.75, verbose=False):
         print('calculating edgeweight matrix')
     embedding.make_edgeweight_mat()
 
-    return embedding
+    return ppmi, embedding

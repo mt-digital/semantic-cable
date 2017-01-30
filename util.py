@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import networkx as nx
+import warnings
 
 from collections import Counter
 from mongoengine import connect
@@ -79,18 +80,37 @@ def get_corpus_text(iatv_corpus_name, network, db_name='metacorps',
     )
 
 
-def vis_graph(g, node_color='r', figsize=(10, 10)):
+def vis_graph(g, node_color='r', figsize=(10, 10),
+              layout='graphviz', alpha=0.5):
 
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111)
-    node_pos = nx.drawing.nx_pydot.graphviz_layout(g)
-    label_pos = {
-        k: array([v[0] + .1, v[1] + .01])
-        for k, v in node_pos.items()
-    }
 
-    nx.draw_networkx_labels(g, pos=label_pos)
-    nx.draw_networkx_nodes(g, node_color=node_color, pos=node_pos, alpha=0.5)
-    nx.draw_networkx_edges(g, pos=node_pos, width=1.0)
+    if layout == 'graphviz':
+        node_pos = nx.drawing.nx_pydot.graphviz_layout(g)
+    elif layout == 'circular':
+        node_pos = nx.drawing.layout.circular_layout(g)
+    elif layout == 'spectral':
+        node_pos = nx.drawing.layout.spectral_layout(g)
+    elif layout == 'spring':
+        node_pos = nx.drawing.layout.spring_layout(g)
+    elif layout == 'shell':
+        node_pos = nx.drawing.layout.shell_layout(g)
+    else:
+        warnings.warn(
+            'layout {} not found, defaulting to graphviz'.format(layout)
+        )
+        node_pos = nx.drawing.nx_pydot.graphviz_layout(g)
+
+    if node_pos not in ['spring']:
+        label_pos = {
+            k: array([v[0] - 20, v[1] + .01])
+            for k, v in node_pos.items()
+        }
+
+    nx.draw_networkx_nodes(g, node_size=500,
+                           node_color=node_color, pos=node_pos, alpha=alpha)
+    nx.draw_networkx_labels(g, font_weight='bold', font_size=18, pos=label_pos)
+    nx.draw_networkx_edges(g, pos=node_pos, edge_color='grey', width=1.0)
 
     return fig, ax

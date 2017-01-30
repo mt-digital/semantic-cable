@@ -6,6 +6,7 @@ from collections import Counter
 
 from build_network import build_network
 from util import get_corpus_text
+from semcable.util import _calculate_adjacency
 
 
 class Experiment:
@@ -141,9 +142,12 @@ def _get_run_result(texts, pct_fox, tau):
     e = build_network(texts)
 
     # build adjacency matrix used to construct graph
-    A = np.copy(e.edgeweight_mat)
-    A[A <= tau] = 0.0
-    A[A > tau] = 1.0
+    # A = np.copy(e.edgeweight_mat)
+    # A[A <= tau] = 0.0
+    # A[A > tau] = 1.0
+
+    print('tryna break it...')
+    A = _calculate_adjacency(e.edgeweight_mat, 20.16, 1e-3)
 
     g = nx.from_numpy_matrix(A)
 
