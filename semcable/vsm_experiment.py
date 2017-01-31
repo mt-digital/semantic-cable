@@ -45,7 +45,8 @@ class VSMResult:
             self.embedding.index_lookup
         )
 
-    def get_top_n(self, cue_word, exclude_list=[], exclude_adverbs=False, n=None):
+    def get_top_n(self, cue_word, exclude_list=[], exclude_adverbs=False,
+                  n=None):
         emb = self.embedding
         wl = emb.word_lookup
 
