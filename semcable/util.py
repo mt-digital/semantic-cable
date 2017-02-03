@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from mongoengine import connect
 from nltk.corpus import stopwords
 from numpy import array
+from scipy.optimize import minimize_scalar
 
 
 STOPWORDS = set(stopwords.words('english'))
@@ -160,7 +161,8 @@ def make_doc_word_matrix(texts):
 
 
 def vis_graph(g, node_color='r', figsize=(10, 10),
-              layout='graphviz', alpha=0.5):
+              layout='graphviz', alpha=0.5,
+              labels_x_offset=0.1, labels_y_offset=0.1):
 
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111)
@@ -183,7 +185,9 @@ def vis_graph(g, node_color='r', figsize=(10, 10),
 
     if node_pos not in ['spring']:
         label_pos = {
-            k: array([v[0] + .1, v[1] + .01])
+            k: array(
+                [v[0] + labels_x_offset, v[1] + labels_y_offset]
+            )
             for k, v in node_pos.items()
         }
 
@@ -209,3 +213,47 @@ class OrderedCounter(Counter, OrderedDict):
 def get_word_idx_lookup(vocab):
 
     return dict((el, idx) for idx, el in enumerate(vocab))
+
+
+def _calculate_adjacency(edgeweight_matrix, k_ave_target, tol):
+    '''
+
+    Arguments:
+        edgeweight_matrix (np.array): probabilities P(w_1|w_2)
+        k_ave_target (float): empirical average node degree that output
+            adjacency graph should match
+        tol (float): tolerance to match k_ave_target
+
+    Returns:
+        (np.array): Adjacency matrix where k_ave ≈ k_ave_target
+    '''
+    tau_max = edgeweight_matrix.max()
+    tau_min = edgeweight_matrix.min()
+
+    tau = tau_max - tau_min
+
+    n_words = len(edgeweight_matrix)
+    denom = 1.0 / n_words
+
+    def f(tau):
+        A = edgeweight_matrix.copy()
+
+        A[A > tau] = 1.0
+        A[A < 1.0] = 0.0
+
+        k_ave_calc = denom * A.sum()
+
+        k_diff = abs(k_ave_calc - k_ave_target)
+
+        del A
+
+        return k_diff
+
+    res = minimize_scalar(f, bounds=(tau_min, tau_max), method='bounded')
+    tau = res.x
+
+    A = edgeweight_matrix.copy()
+    A[A > tau] = 1.0
+    A[A < 1.0] = 0.0
+
+    return A
