@@ -1,0 +1,26 @@
+#! /bin/bash
+#$ -S /bin/bash
+#$ -q fast.q
+#$ -cwd
+#$ -j y
+#$ -V
+#$ -l mem_free=96G
+#$ -pe smp 20
+#$ -N vsm-nomix
+#$ -o vsm-nomix.log
+
+db_path=/home/mturner8/.db_vsm-nomix
+
+cp -r /home/mturner8/.db $db_path
+
+mongod --dbpath $db_path &
+
+printf "\nRunning experiment !\n\n`uptime`\n"
+
+python generate_bar_online.py
+
+printf "\nJob Finished!\n\n`uptime`\n"
+
+mongod --shutdown --dbpath $db_path
+
+rm -r $db_path
