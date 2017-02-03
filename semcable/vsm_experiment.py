@@ -101,9 +101,40 @@ class VSMResult:
 
         subg = self.graph.subgraph(sg_nodes)
 
-        vis_graph(subg, figsize=figsize, node_color=node_color,
-                  labels_x_offset=labels_x_offset,
-                  labels_y_offset=labels_y_offset)
+        return vis_graph(subg, figsize=figsize, node_color=node_color,
+                         labels_x_offset=labels_x_offset,
+                         labels_y_offset=labels_y_offset)
+
+
+def generate_local_network_plot(save_dir, cue_words, msnbc_result, fox_result,
+                                exclude_lookup=None, msnbc_color='dodgerblue',
+                                fox_color='red'):
+    from matplotlib.backends.backend_pdf import PdfPages
+    plt.style.use('default')
+    for cue_word in cue_words:
+        for res in [('fox', fox_result), ('msnbc', msnbc_result)]:
+            with PdfPages(
+                os.path.join(
+                    save_dir, '{}-{}-network.pdf'.format(cue_word, res[0])
+                    )
+                 ) as pdf:
+                node_color = (fox_color, msnbc_color)[res[0] == 'msnbc']
+                fig, ax = res[1].vis_subgraph(
+                    cue_word, node_color=node_color, exclude_adverbs=False)
+                ax.axis('off')
+
+                network_title_el = ('Fox News', 'MSNBC')[res[0] == 'msnbc']
+                st = fig.suptitle(
+                    "Local network around '{}' in {}".format(
+                        cue_word, network_title_el
+                    ),
+                    fontsize=26
+                )
+                st.set_y(.95)
+
+                plt.tight_layout()
+                pdf.savefig(fig, transparent=True, bbox_inches='tight')
+                plt.close()
 
 
 def generate_barh_plots(save_dir, cue_words, msnbc_result, fox_result,
@@ -122,41 +153,55 @@ def generate_barh_plots(save_dir, cue_words, msnbc_result, fox_result,
         None
     '''
 
+    plt.style.use('ggplot')
+
     for cue in cue_words:
-        fox_topn = fox_result.get_top_n(cue, n=n)
-        fox_topn.reverse()
+        with PdfPages(os.path.join(save_dir, cue + '.pdf')) as pdf:
 
-        msnbc_topn = msnbc_result.get_top_n(cue, n=n)
-        msnbc_topn.reverse()
+            if exclude_lookup is not None and cue in exclude_lookup:
+                fox_topn = fox_result.get_top_n(
+                    cue, n=n, exclude_list=exclude_lookup[cue]
+                )
+                msnbc_topn = msnbc_result.get_top_n(
+                    cue, n=n, exclude_list=exclude_lookup[cue]
+                )
+            else:
+                fox_topn = fox_result.get_top_n(cue, n=n)
+                msnbc_topn = msnbc_result.get_top_n(cue, n=n)
 
-        fox_index = [a[0] for a in fox_topn]
-        fox_data = [a[1] for a in fox_topn]
-        fox_df = DataFrame(index=fox_index, data=fox_data)
+            fox_topn.reverse()
+            msnbc_topn.reverse()
 
-        msnbc_index = [a[0] for a in msnbc_topn]
-        msnbc_data = [a[1] for a in msnbc_topn]
-        msnbc_df = DataFrame(index=msnbc_index, data=msnbc_data)
+            fox_index = [a[0] for a in fox_topn]
+            fox_data = [a[1] for a in fox_topn]
+            fox_df = DataFrame(index=fox_index, data=fox_data)
 
-        fig, axes = plt.subplots(nrows=1, ncols=2)
+            msnbc_index = [a[0] for a in msnbc_topn]
+            msnbc_data = [a[1] for a in msnbc_topn]
+            msnbc_df = DataFrame(index=msnbc_index, data=msnbc_data)
 
-        msnbc_df.plot(kind='barh', legend=False, color=msnbc_color, ax=axes[0])
-        fox_df.plot(kind='barh', legend=False, color=fox_color, ax=axes[1])
+            fig, axes = plt.subplots(nrows=1, ncols=2)
 
-        axes[0].set_title('MSNBC', fontsize=12)
-        axes[1].set_title('Fox News', fontsize=12)
+            msnbc_df.plot(kind='barh', legend=False, color=msnbc_color, ax=axes[0])
+            fox_df.plot(kind='barh', legend=False, color=fox_color, ax=axes[1])
 
-        for ax in axes:
-            ax.set_xlabel('relative association strength')
-            xticks = ax.get_xicks()
-            ax.set_xticks(xticks[::2])
+            axes[0].set_title('MSNBC', fontsize=12)
+            axes[1].set_title('Fox News', fontsize=12)
 
-        st = fig.suptitle("cue: '{}'".format(cue))
-        st.set_x(0.55)
+            for ax in axes:
+                ax.set_xlabel('rel. assoc. strength')
+                xticks = ax.get_xticks()
+                ax.set_xticks(xticks[::2])
 
-        plt.tight_layout()
-        fig.subplots_adjust(top=0.85)
+            st = fig.suptitle("cue: '{}'".format(cue), fontsize=18)
+            st.set_x(0.55)
 
-        PdfPages(os.path.join(save_dir, cue + '.pdf')).savefig(fig)
+            plt.tight_layout()
+            fig.subplots_adjust(top=0.85)
+
+            pdf.savefig(fig, bbox_inches='tight')
+
+            plt.close()
 
 
 class VSMExperiment:
